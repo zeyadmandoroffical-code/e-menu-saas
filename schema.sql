@@ -26,17 +26,21 @@ CREATE TABLE IF NOT EXISTS public.categories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. MENU ITEMS TABLE
+-- 3. MENU ITEMS TABLE (WITH SIZES JSONB)
 CREATE TABLE IF NOT EXISTS public.menu_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     category_id UUID NOT NULL REFERENCES public.categories(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT,
     price NUMERIC(10, 2) NOT NULL,
+    sizes JSONB DEFAULT '[]'::jsonb,
     image_url TEXT,
     is_available BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for existing menu_items table
+ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS sizes JSONB DEFAULT '[]'::jsonb;
 
 -- 4. ITEM MODIFIERS TABLE (Variants & Addons)
 CREATE TABLE IF NOT EXISTS public.item_modifiers (
@@ -95,7 +99,7 @@ CREATE POLICY "Public can view modifiers for menu items"
         )
     );
 
--- SEED DATA FOR TESTING
+-- SEED DATA FOR DEMO / TESTING
 INSERT INTO public.restaurants (id, name, subdomain, logo_url, cover_url, primary_color, whatsapp_number, delivery_fee)
 VALUES (
     'a1b2c3d4-e5f6-7890-abcd-1234567890ab',
@@ -104,7 +108,7 @@ VALUES (
     'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=300&q=80',
     'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=1200&q=80',
     '#E11D48',
-    '+966500000000',
+    '+201000000000',
     15.00
 ) ON CONFLICT (subdomain) DO NOTHING;
 
@@ -114,14 +118,15 @@ VALUES
     ('c1b2c3d4-e5f6-7890-abcd-1234567890a2', 'a1b2c3d4-e5f6-7890-abcd-1234567890ab', 'المقبلات والمشروبات', 2)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO public.menu_items (id, category_id, name, description, price, image_url, is_available)
+INSERT INTO public.menu_items (id, category_id, name, description, price, sizes, image_url, is_available)
 VALUES 
     (
         'm1b2c3d4-e5f6-7890-abcd-1234567890m1',
         'c1b2c3d4-e5f6-7890-abcd-1234567890a1',
-        'كلاسيك برجر لجم',
+        'كلاسيك برجر لحم',
         'شريحة لحم أنجوس مشوية، جبنة شيدر ذائبة، خَس طازج، مخلل، وصوص خاص',
-        38.00,
+        130.00,
+        '[{"name": "سنجل 150ج", "price": 130}, {"name": "دبل 250ج", "price": 175}, {"name": "تريبل 350ج", "price": 220}]'::jsonb,
         'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80',
         true
     ),
@@ -130,7 +135,8 @@ VALUES
         'c1b2c3d4-e5f6-7890-abcd-1234567890a1',
         'تريبل دبل برجر',
         'شريحتان من اللحم المشوي، جبن دوبل، بصل مكرمل وصوص الشواء المميز',
-        45.00,
+        160.00,
+        '[{"name": "وسط 200ج", "price": 160}, {"name": "كبير 300ج", "price": 200}]'::jsonb,
         'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=600&q=80',
         true
     )
@@ -138,7 +144,6 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO public.item_modifiers (id, item_id, title, price, type)
 VALUES 
-    ('x1b2c3d4-e5f6-7890-abcd-1234567890x1', 'm1b2c3d4-e5f6-7890-abcd-1234567890m1', 'حجم كبير (وجبة)', 12.00, 'variant'),
-    ('x1b2c3d4-e5f6-7890-abcd-1234567890x2', 'm1b2c3d4-e5f6-7890-abcd-1234567890m1', 'إضافة جبنة شيدر إضافية', 5.00, 'addon'),
-    ('x1b2c3d4-e5f6-7890-abcd-1234567890x3', 'm1b2c3d4-e5f6-7890-abcd-1234567890m1', 'إضافة بيكن بقر مقرمش', 7.00, 'addon')
+    ('x1b2c3d4-e5f6-7890-abcd-1234567890x2', 'm1b2c3d4-e5f6-7890-abcd-1234567890m1', 'إضافة جبنة شيدر إضافية', 15.00, 'addon'),
+    ('x1b2c3d4-e5f6-7890-abcd-1234567890x3', 'm1b2c3d4-e5f6-7890-abcd-1234567890m1', 'إضافة بيكن بقر مقرمش', 25.00, 'addon')
 ON CONFLICT DO NOTHING;

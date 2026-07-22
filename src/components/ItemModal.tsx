@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { MenuItem, ItemModifier, CartItem } from '@/types/database'
+import { MenuItem, ItemModifier, ItemSize, CartItem } from '@/types/database'
 import { getContrastTextColor } from '@/lib/colors'
 import { X, Plus, Minus, Check, MessageSquare } from 'lucide-react'
 
@@ -20,12 +20,21 @@ export default function ItemModal({
   onAddToCart,
   primaryColor = '#E11D48',
 }: ItemModalProps) {
+  const [selectedSize, setSelectedSize] = useState<ItemSize | null>(null)
   const [selectedVariant, setSelectedVariant] = useState<ItemModifier | null>(null)
   const [selectedAddons, setSelectedAddons] = useState<ItemModifier[]>([])
   const [quantity, setQuantity] = useState<number>(1)
   const [specialInstructions, setSpecialInstructions] = useState<string>('')
 
-  // Separate modifiers by type
+  // Structured sizes array
+  const sizes = useMemo(() => {
+    if (item?.sizes && Array.isArray(item.sizes) && item.sizes.length > 0) {
+      return item.sizes
+    }
+    return []
+  }, [item])
+
+  // Modifiers fallback
   const variants = useMemo(
     () => item?.item_modifiers?.filter((mod) => mod.type === 'variant') || [],
     [item]
@@ -38,19 +47,30 @@ export default function ItemModal({
   // Reset state when item changes or modal opens
   useEffect(() => {
     if (isOpen && item) {
-      setSelectedVariant(variants.length > 0 ? variants[0] : null)
+      if (sizes.length > 0) {
+        setSelectedSize(sizes[0])
+        setSelectedVariant(null)
+      } else {
+        setSelectedSize(null)
+        setSelectedVariant(variants.length > 0 ? variants[0] : null)
+      }
       setSelectedAddons([])
       setQuantity(1)
       setSpecialInstructions('')
     }
-  }, [isOpen, item, variants])
+  }, [isOpen, item, sizes, variants])
 
   if (!isOpen || !item) return null
 
   // Calculate dynamic unit and total price
-  const variantPrice = Number(selectedVariant?.price || 0)
+  const baseSizePrice = selectedSize ? Number(selectedSize.price) : Number(item.price)
+  const variantPrice = selectedVariant ? Number(selectedVariant.price || 0) : 0
   const addonsPrice = selectedAddons.reduce((sum: number, addon: ItemModifier) => sum + Number(addon.price || 0), 0)
-  const unitPrice = Number(item.price) + variantPrice + addonsPrice
+  
+  const unitPrice = selectedSize
+    ? baseSizePrice + addonsPrice
+    : baseSizePrice + variantPrice + addonsPrice
+
   const totalPrice = unitPrice * quantity
 
   // Contrast text color for CTA button
@@ -68,6 +88,7 @@ export default function ItemModal({
     const cartItem: CartItem = {
       cartId: `${item.id}-${Date.now()}`,
       item,
+      selectedSize,
       selectedVariant,
       selectedAddons,
       quantity,
@@ -119,7 +140,7 @@ export default function ItemModal({
             <div className="flex justify-between items-start gap-4 mb-1">
               <h2 className="text-2xl font-bold text-slate-900">{item.name}</h2>
               <span className="text-xl font-extrabold text-rose-600 shrink-0">
-                {item.price} <span className="text-xs font-normal text-slate-500">ج.م</span>
+                {unitPrice.toFixed(2)} <span className="text-xs font-normal text-slate-500">ج.م</span>
               </span>
             </div>
             {item.description && (
@@ -127,8 +148,50 @@ export default function ItemModal({
             )}
           </div>
 
-          {/* Variants Selection (Radio Options) */}
-          {variants.length > 0 && (
+          {/* Structured Custom Sizes Selection (Default Size selected by default) */}
+          {sizes.length > 0 && (
+            <div className="space-y-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-900 text-sm">اختر الحجم (Size)</h3>
+                <span className="text-xs text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full font-medium">
+                  مطلوب
+                </span>
+              </div>
+              <div className="space-y-2">
+                {sizes.map((size: ItemSize, idx: number) => {
+                  const isSelected = selectedSize?.name === size.name
+                  return (
+                    <label
+                      key={idx}
+                      onClick={() => setSelectedSize(size)}
+                      className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-rose-500 bg-rose-50/50 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
+                            isSelected ? 'border-rose-600 bg-rose-600' : 'border-slate-300'
+                          }`}
+                        >
+                          {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <span className="text-sm font-semibold text-slate-800">{size.name}</span>
+                      </div>
+                      <span className="text-xs font-bold text-slate-700">
+                        {size.price} ج.م
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Variants Fallback (if no sizes array) */}
+          {sizes.length === 0 && variants.length > 0 && (
             <div className="space-y-3 pt-3 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-900 text-sm">اختر الحجم / النمط</h3>
@@ -229,7 +292,7 @@ export default function ItemModal({
           </div>
         </div>
 
-        {/* Modal Footer Controls & CTA */}
+        {/* Modal Footer Controls & Dynamic CTA Button */}
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3 shrink-0">
           <div className="flex items-center justify-between gap-4">
             {/* Quantity Stepper */}

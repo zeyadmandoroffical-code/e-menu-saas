@@ -6,6 +6,11 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export interface ItemSize {
+  name: string
+  price: number
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -77,6 +82,7 @@ export interface Database {
           name: string
           description: string | null
           price: number
+          sizes: ItemSize[] | null
           image_url: string | null
           is_available: boolean
           created_at: string
@@ -87,6 +93,7 @@ export interface Database {
           name: string
           description?: string | null
           price: number
+          sizes?: ItemSize[] | null
           image_url?: string | null
           is_available?: boolean
           created_at?: string
@@ -97,6 +104,7 @@ export interface Database {
           name?: string
           description?: string | null
           price?: number
+          sizes?: ItemSize[] | null
           image_url?: string | null
           is_available?: boolean
           created_at?: string
@@ -147,6 +155,7 @@ export interface CartModifier {
 export interface CartItem {
   cartId: string
   item: MenuItem
+  selectedSize?: ItemSize | null
   selectedVariant?: CartModifier | null
   selectedAddons: CartModifier[]
   quantity: number

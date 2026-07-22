@@ -154,11 +154,15 @@ export default function TenantMenuPage({ params }: MenuPageProps) {
           name: 'كلاسيك برجر لحم',
           description: 'شريحة لحم أنجوس مشوية، جبنة شيدر ذائبة، خَس طازج، مخلل، وصوص خاص',
           price: 130.0,
+          sizes: [
+            { name: 'سنجل 150ج', price: 130 },
+            { name: 'دبل 250ج', price: 175 },
+            { name: 'تريبل 350ج', price: 220 },
+          ],
           image_url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           created_at: new Date().toISOString(),
           item_modifiers: [
-            { id: 'mod-1', item_id: 'item-1', title: 'حجم كبير (وجبة)', price: 35.0, type: 'variant', created_at: '' },
             { id: 'mod-2', item_id: 'item-1', title: 'إضافة جبنة شيدر إضافية', price: 15.0, type: 'addon', created_at: '' },
           ],
         },
@@ -168,6 +172,10 @@ export default function TenantMenuPage({ params }: MenuPageProps) {
           name: 'تريبل دبل برجر',
           description: 'شريحتان من اللحم المشوي، جبن دوبل، بصل مكرمل وصوص الشواء المميز',
           price: 160.0,
+          sizes: [
+            { name: 'وسط 200ج', price: 160 },
+            { name: 'كبير 300ج', price: 200 },
+          ],
           image_url: 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           created_at: new Date().toISOString(),
@@ -179,6 +187,7 @@ export default function TenantMenuPage({ params }: MenuPageProps) {
           name: 'برجر الدجاج المقرمش (نفذت الكمية)',
           description: 'صدر دجاج مقلي مقرمش، صوص المايونيز الحار والخس',
           price: 110.0,
+          sizes: [],
           image_url: 'https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?auto=format&fit=crop&w=600&q=80',
           is_available: false,
           created_at: new Date().toISOString(),
@@ -199,6 +208,7 @@ export default function TenantMenuPage({ params }: MenuPageProps) {
           name: 'بطاطس متبلة مع الجبن',
           description: 'بطاطس مقرمشة مغطاة بصلصة الجبنة الذائبة وقطع الهالابينو',
           price: 50.0,
+          sizes: [],
           image_url: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           created_at: new Date().toISOString(),
@@ -266,7 +276,7 @@ export default function TenantMenuPage({ params }: MenuPageProps) {
             </div>
 
             <p className="text-xs text-slate-500 mb-4">
-              نطاق القائمة الإلكترونية: <span className="font-mono text-rose-600 font-semibold">{subdomain}.yourdomain.com</span>
+              نطاق القائمة الإلكترونية: <span className="font-mono text-rose-600 font-semibold">{subdomain}.localhost:3000</span>
             </p>
 
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-slate-600">
@@ -333,6 +343,7 @@ export default function TenantMenuPage({ params }: MenuPageProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {category.menu_items?.map((item: MenuItemWithModifiers) => {
                   const isAvailable = item.is_available !== false
+                  const displayPrice = item.sizes && item.sizes.length > 0 ? item.sizes[0].price : item.price
 
                   return (
                     <div
@@ -380,11 +391,28 @@ export default function TenantMenuPage({ params }: MenuPageProps) {
                               {item.description}
                             </p>
                           )}
+
+                          {/* Item Sizes Badge Preview */}
+                          {item.sizes && item.sizes.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {item.sizes.map((sz, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md"
+                                >
+                                  {sz.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center justify-between mt-3">
                           <span className="font-extrabold text-slate-900 text-base">
-                            {item.price}{' '}
+                            {item.sizes && item.sizes.length > 1 && (
+                              <span className="text-xs text-slate-500 font-normal ml-1">يبدأ من </span>
+                            )}
+                            {displayPrice}{' '}
                             <span className="text-xs text-slate-500 font-normal">ج.م</span>
                           </span>
 

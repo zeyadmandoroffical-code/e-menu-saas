@@ -108,7 +108,13 @@ export default function FloatingCart({
                       <h4 className="font-bold text-slate-900 text-sm">{cartItem.item.name}</h4>
                     </div>
 
-                    {cartItem.selectedVariant && (
+                    {cartItem.selectedSize && (
+                      <p className="text-xs text-slate-500 mr-8 mt-0.5 font-medium">
+                        الحجم: {cartItem.selectedSize.name} ({cartItem.selectedSize.price} ج.م)
+                      </p>
+                    )}
+
+                    {!cartItem.selectedSize && cartItem.selectedVariant && (
                       <p className="text-xs text-slate-500 mr-8 mt-0.5">
                         الحجم: {cartItem.selectedVariant.title}
                       </p>

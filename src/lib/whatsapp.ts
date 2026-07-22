@@ -21,9 +21,12 @@ export function buildWhatsAppMessageUrl(
 
   cartItems.forEach((ci, idx) => {
     message += `*${idx + 1}. ${ci.item.name}* (x${ci.quantity})\n`
-    if (ci.selectedVariant) {
+    if (ci.selectedSize) {
+      message += `   • الحجم: ${ci.selectedSize.name} (${ci.selectedSize.price} ج.م)\n`
+    } else if (ci.selectedVariant) {
       message += `   • الحجم/النوع: ${ci.selectedVariant.title}\n`
     }
+
     if (ci.selectedAddons && ci.selectedAddons.length > 0) {
       message += `   • الإضافات: ${ci.selectedAddons.map((a) => a.title).join('، ')}\n`
     }

@@ -2,12 +2,13 @@
 
 import { useState, useEffect, ChangeEvent } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Restaurant, Category, MenuItem, ItemModifier } from '@/types/database'
+import { Restaurant, Category, MenuItem, ItemModifier, ItemSize } from '@/types/database'
 import Link from 'next/link'
 import {
   Utensils,
   Plus,
   Trash2,
+  Edit2,
   CheckCircle,
   XCircle,
   Globe,
@@ -19,6 +20,8 @@ import {
   Eye,
   RefreshCw,
   Search,
+  Settings,
+  X,
 } from 'lucide-react'
 
 // Apple Palette Presets
@@ -47,7 +50,7 @@ export default function SuperAdminPage() {
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string>('')
   const [categories, setCategories] = useState<CategoryWithItems[]>([])
 
-  // Modal / Form States
+  // Modal / Form States for Creating Restaurant
   const [showAddRestaurantModal, setShowAddRestaurantModal] = useState<boolean>(false)
   const [newRestName, setNewRestName] = useState<string>('')
   const [newRestSubdomain, setNewRestSubdomain] = useState<string>('')
@@ -57,16 +60,28 @@ export default function SuperAdminPage() {
   const [newRestLogoUrl, setNewRestLogoUrl] = useState<string>('')
   const [newRestCoverUrl, setNewRestCoverUrl] = useState<string>('')
 
+  // Edit Restaurant State
+  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null)
+  const [editRestName, setEditRestName] = useState<string>('')
+  const [editRestWhatsapp, setEditRestWhatsapp] = useState<string>('')
+  const [editRestDeliveryFee, setEditRestDeliveryFee] = useState<number>(15)
+  const [editRestColor, setEditRestColor] = useState<string>('#E11D48')
+  const [editRestLogoUrl, setEditRestLogoUrl] = useState<string>('')
+  const [editRestCoverUrl, setEditRestCoverUrl] = useState<string>('')
+
   // Category Form State
   const [newCategoryName, setNewCategoryName] = useState<string>('')
 
-  // Menu Item Form State
+  // Menu Item Form State (with Structured Sizes)
   const [showAddItemModal, setShowAddItemModal] = useState<boolean>(false)
   const [itemCategoryId, setItemCategoryId] = useState<string>('')
   const [itemName, setItemName] = useState<string>('')
   const [itemDescription, setItemDescription] = useState<string>('')
   const [itemPrice, setItemPrice] = useState<number>(0)
   const [itemImageUrl, setItemImageUrl] = useState<string>('')
+  const [itemSizes, setItemSizes] = useState<ItemSize[]>([])
+  const [sizeInputName, setSizeInputName] = useState<string>('')
+  const [sizeInputPrice, setSizeInputPrice] = useState<number>(0)
 
   // Modifier Form State
   const [selectedItemForModifier, setSelectedItemForModifier] = useState<MenuItemWithModifiers | null>(null)
@@ -179,6 +194,49 @@ export default function SuperAdminPage() {
     }
   }
 
+  const handleOpenEditRestaurant = (restaurant: Restaurant) => {
+    setEditingRestaurant(restaurant)
+    setEditRestName(restaurant.name)
+    setEditRestWhatsapp(restaurant.whatsapp_number || '')
+    setEditRestDeliveryFee(restaurant.delivery_fee || 15)
+    setEditRestColor(restaurant.primary_color || '#E11D48')
+    setEditRestLogoUrl(restaurant.logo_url || '')
+    setEditRestCoverUrl(restaurant.cover_url || '')
+  }
+
+  const handleSaveEditRestaurant = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingRestaurant || !editRestName) return
+
+    try {
+      const { data, error } = await (supabase.from('restaurants') as any)
+        .update({
+          name: editRestName,
+          whatsapp_number: editRestWhatsapp,
+          delivery_fee: editRestDeliveryFee,
+          primary_color: editRestColor,
+          logo_url: editRestLogoUrl.trim() || editingRestaurant.logo_url,
+          cover_url: editRestCoverUrl.trim() || editingRestaurant.cover_url,
+        })
+        .eq('id', editingRestaurant.id)
+        .select()
+        .single()
+
+      if (error) {
+        alert(`خطأ أثناء التعديل: ${error.message}`)
+      } else if (data) {
+        const updatedRest = data as Restaurant
+        setRestaurants((prev) =>
+          prev.map((r) => (r.id === updatedRest.id ? updatedRest : r))
+        )
+        setEditingRestaurant(null)
+      }
+    } catch (err: any) {
+      console.error('Error updating restaurant profile:', err)
+      alert(`خطأ: ${err.message || err}`)
+    }
+  }
+
   const handleToggleRestaurantStatus = async (restaurant: Restaurant) => {
     const nextStatus = !restaurant.is_active
     try {
@@ -281,11 +339,25 @@ export default function SuperAdminPage() {
     }
   }
 
-  // --- MENU ITEM ACTIONS ---
+  // --- MENU ITEM & STRUCTURED SIZES ACTIONS ---
+
+  const handleAddSizeOptionToForm = () => {
+    if (!sizeInputName.trim() || sizeInputPrice <= 0) return
+    setItemSizes((prev) => [...prev, { name: sizeInputName.trim(), price: sizeInputPrice }])
+    setSizeInputName('')
+    setSizeInputPrice(0)
+  }
+
+  const handleRemoveSizeOptionFromForm = (index: number) => {
+    setItemSizes((prev) => prev.filter((_, idx) => idx !== index))
+  }
 
   const handleCreateMenuItem = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!itemCategoryId || !itemName || itemPrice <= 0) return
+    if (!itemCategoryId || !itemName) return
+
+    // Base price defaults to itemPrice or first size price
+    const finalBasePrice = itemSizes.length > 0 ? itemSizes[0].price : itemPrice
 
     try {
       const { data, error } = await (supabase.from('menu_items') as any)
@@ -293,7 +365,8 @@ export default function SuperAdminPage() {
           category_id: itemCategoryId,
           name: itemName,
           description: itemDescription,
-          price: itemPrice,
+          price: finalBasePrice,
+          sizes: itemSizes,
           image_url: itemImageUrl.trim() || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80',
           is_available: true,
         })
@@ -318,6 +391,7 @@ export default function SuperAdminPage() {
         setItemDescription('')
         setItemPrice(0)
         setItemImageUrl('')
+        setItemSizes([])
       }
     } catch (err) {
       console.error('Error adding item:', err)
@@ -446,7 +520,7 @@ export default function SuperAdminPage() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight">لوحة التحكم المشرف Super Admin</h1>
-              <p className="text-xs text-slate-400">إدارة المطاعم والمنايو الإلكترونية (بالجنيه المصري ج.م)</p>
+              <p className="text-xs text-slate-400">إدارة المطاعم، المنيو، والأحجام التفصيلية (بالجنيه المصري ج.م)</p>
             </div>
           </div>
 
@@ -618,7 +692,17 @@ export default function SuperAdminPage() {
                       </div>
 
                       <div>
-                        <h3 className="text-lg font-bold text-white mb-1">{restaurant.name}</h3>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <h3 className="text-lg font-bold text-white">{restaurant.name}</h3>
+                          <button
+                            onClick={() => handleOpenEditRestaurant(restaurant)}
+                            className="text-xs text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            تعديل الملف
+                          </button>
+                        </div>
+
                         <div className="space-y-1 text-xs text-slate-400">
                           <p className="flex items-center gap-1.5">
                             <Phone className="w-3.5 h-3.5 text-slate-500" />
@@ -664,7 +748,7 @@ export default function SuperAdminPage() {
                           className="flex-1 py-2 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
                         >
                           <Layers className="w-3.5 h-3.5" />
-                          <span>تعديل المنيو</span>
+                          <span>إدارة المنيو</span>
                         </button>
 
                         <Link
@@ -798,6 +882,20 @@ export default function SuperAdminPage() {
                               </span>
                             </div>
                             <p className="text-xs text-slate-400 line-clamp-2 mt-1">{item.description}</p>
+
+                            {/* Render Structured Sizes Badges */}
+                            {item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {item.sizes.map((sz, sIdx) => (
+                                  <span
+                                    key={sIdx}
+                                    className="text-[10px] bg-rose-500/10 text-rose-300 border border-rose-500/20 px-2 py-0.5 rounded-md"
+                                  >
+                                    {sz.name}: {sz.price} ج.م
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -840,7 +938,7 @@ export default function SuperAdminPage() {
                               onClick={() => setSelectedItemForModifier(item)}
                               className="text-indigo-400 hover:underline font-semibold"
                             >
-                              + إضافة أحجام/إضافات
+                              + إضافة إضافات اختيارية
                             </button>
                             <button
                               onClick={() => handleDeleteItem(item.id)}
@@ -859,6 +957,111 @@ export default function SuperAdminPage() {
           </div>
         )}
       </main>
+
+      {/* EDIT RESTAURANT PROFILE MODAL */}
+      {editingRestaurant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-lg space-y-5 animate-slide-up">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                <Settings className="w-5 h-5 text-rose-500" />
+                تعديل ملف المطعم ({editingRestaurant.subdomain})
+              </h3>
+              <button
+                onClick={() => setEditingRestaurant(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditRestaurant} className="space-y-4 text-sm">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">اسم المطعم *</label>
+                <input
+                  type="text"
+                  required
+                  value={editRestName}
+                  onChange={(e) => setEditRestName(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">رقم الواتساب</label>
+                  <input
+                    type="text"
+                    value={editRestWhatsapp}
+                    onChange={(e) => setEditRestWhatsapp(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">رسوم التوصيل (ج.م)</label>
+                  <input
+                    type="number"
+                    value={editRestDeliveryFee}
+                    onChange={(e) => setEditRestDeliveryFee(Number(e.target.value))}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              {/* Logo Upload & URL */}
+              <div className="space-y-2">
+                <label className="block text-slate-300 font-bold">شعار المطعم (Logo URL)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={editRestLogoUrl}
+                    onChange={(e) => setEditRestLogoUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500 text-xs"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      handleUploadImage(e, 'restaurant-media', (url) => setEditRestLogoUrl(url))
+                    }
+                    className="w-24 text-[10px] text-slate-400 file:py-2 file:px-2 file:rounded-xl file:border-0 file:bg-slate-700 file:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Banner / Cover Upload & URL */}
+              <div className="space-y-2">
+                <label className="block text-slate-300 font-bold">صورة الغلاف (Banner URL)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={editRestCoverUrl}
+                    onChange={(e) => setEditRestCoverUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500 text-xs"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      handleUploadImage(e, 'restaurant-media', (url) => setEditRestCoverUrl(url))
+                    }
+                    className="w-24 text-[10px] text-slate-400 file:py-2 file:px-2 file:rounded-xl file:border-0 file:bg-slate-700 file:text-white"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg transition-colors"
+              >
+                حفظ التعديلات الحالية
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CREATE RESTAURANT MODAL */}
       {showAddRestaurantModal && (
@@ -981,10 +1184,10 @@ export default function SuperAdminPage() {
         </div>
       )}
 
-      {/* CREATE MENU ITEM MODAL */}
+      {/* CREATE MENU ITEM MODAL (WITH SIZES BUILDER) */}
       {showAddItemModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-lg space-y-5 animate-slide-up">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-lg space-y-5 animate-slide-up max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-white text-lg">إضافة صنف جديد للمنيو</h3>
               <button
@@ -1001,7 +1204,7 @@ export default function SuperAdminPage() {
                 <input
                   type="text"
                   required
-                  placeholder="مثال: كشري حواوشي مكس"
+                  placeholder="مثال: كلاسيك برجر"
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
@@ -1019,17 +1222,75 @@ export default function SuperAdminPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">السعر (ج.م) *</label>
-                <input
-                  type="number"
-                  required
-                  step="0.5"
-                  value={itemPrice}
-                  onChange={(e) => setItemPrice(Number(e.target.value))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
-                />
+              {/* Structured Custom Sizes Builder Section */}
+              <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/80 space-y-3">
+                <label className="block text-slate-200 font-bold text-xs flex items-center justify-between">
+                  <span>أحجام الصنف المخصصة (Custom Sizes)</span>
+                  <span className="text-[11px] text-slate-400 font-normal">اختياري - يحدد سعر الحجم</span>
+                </label>
+
+                {/* Added Sizes Pills List */}
+                {itemSizes.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {itemSizes.map((sz, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30 px-3 py-1 rounded-xl flex items-center gap-1.5 font-semibold"
+                      >
+                        <span>{sz.name}: {sz.price} ج.م</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSizeOptionFromForm(idx)}
+                          className="hover:text-white"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Inline Add Size Inputs */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="اسم الحجم (مثال: سنجل 150ج)"
+                    value={sizeInputName}
+                    onChange={(e) => setSizeInputName(e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    step="0.5"
+                    placeholder="السعر ج.م"
+                    value={sizeInputPrice || ''}
+                    onChange={(e) => setSizeInputPrice(Number(e.target.value))}
+                    className="w-24 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSizeOptionToForm}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition-colors"
+                  >
+                    + إضافة
+                  </button>
+                </div>
               </div>
+
+              {/* Fallback Base Price (if no custom sizes added) */}
+              {itemSizes.length === 0 && (
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">السعر الأساسي (ج.م) *</label>
+                  <input
+                    type="number"
+                    required={itemSizes.length === 0}
+                    step="0.5"
+                    value={itemPrice}
+                    onChange={(e) => setItemPrice(Number(e.target.value))}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="block text-slate-300 font-bold">صورة الصنف</label>
@@ -1070,7 +1331,7 @@ export default function SuperAdminPage() {
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-5 animate-slide-up">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-white text-base">
-                إضافة أحجام / إضافات لـ ({selectedItemForModifier.name})
+                إضافة إضافات اختيارية لـ ({selectedItemForModifier.name})
               </h3>
               <button
                 onClick={() => setSelectedItemForModifier(null)}
@@ -1088,8 +1349,8 @@ export default function SuperAdminPage() {
                   onChange={(e) => setModifierType(e.target.value as 'variant' | 'addon')}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
                 >
-                  <option value="variant">حجم / نوع اختيار منفرد (Variant)</option>
                   <option value="addon">إضافة اختيارية متعددة (Add-on)</option>
+                  <option value="variant">اختيار منفرد (Variant)</option>
                 </select>
               </div>
 
@@ -1098,7 +1359,7 @@ export default function SuperAdminPage() {
                 <input
                   type="text"
                   required
-                  placeholder="مثال: حجم كبير (وجبة) أو صلصة حارة إضافية"
+                  placeholder="مثال: جبن إضافي، بيكن مقرمش، صوص خاص"
                   value={modifierTitle}
                   onChange={(e) => setModifierTitle(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"

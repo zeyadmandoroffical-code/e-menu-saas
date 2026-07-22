@@ -1,17 +1,18 @@
 import { useState, useCallback } from 'react'
-import { CartItem, MenuItem, ItemModifier } from '@/types/database'
+import { CartItem, ItemModifier, ItemSize } from '@/types/database'
 
 /**
- * Calculates unit price for an item with its selected variant and addons
+ * Calculates unit price for an item with its selected size/variant and addons
  */
 export function calculateUnitPrice(
   basePrice: number,
+  selectedSize?: ItemSize | null,
   selectedVariant?: ItemModifier | null,
   selectedAddons: ItemModifier[] = []
 ): number {
-  const variantPrice = Number(selectedVariant?.price || 0)
+  const effectiveBasePrice = selectedSize ? Number(selectedSize.price) : (selectedVariant ? Number(selectedVariant.price) || basePrice : basePrice)
   const addonsPrice = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0)
-  return Number(basePrice) + variantPrice + addonsPrice
+  return effectiveBasePrice + addonsPrice
 }
 
 /**
